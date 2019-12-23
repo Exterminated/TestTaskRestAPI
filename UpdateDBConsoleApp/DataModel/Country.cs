@@ -9,6 +9,7 @@ namespace UpdateDBConsoleApp.DataModel
         public int CountryID { get; set; }
         public string IsoCode { get; set; }
         public string Name { get; set; }
-        public string LocalizedNamesId { get; set; }
+        public List<Subdivision> Subdivisions { get; set; } //множество регионов/областей/штатов
+        public int GeoNameId { get; set; }
     }
 }

@@ -9,6 +9,9 @@ namespace UpdateDBConsoleApp.DataModel
         public int SubdivisionId { get; set; }        
         public string IsoCode { get; set; }
         public string Name { get; set; }
-        public string LocalizedNamesId { get; set; }
+        public int CountryID { get; set; }
+        public Country Country { get; set; }
+        public List<City> Cities { get; set; }//множество городов в области/регионе/штате
+        public int GeoNameId { get; set; }
     }
 }

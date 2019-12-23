@@ -11,7 +11,6 @@ namespace UpdateDBConsoleApp
         public DbSet<City> Cities { get; set; }
         public DbSet<Country> Countries { get; set; }
         public DbSet<IPs> IPs { get; set; }
-        public DbSet<LocalizedNames> LocalizedNames { get; set; }
         public DbSet<Location> Locations { get; set; }
         public DbSet<Subdivision> Subdivisions { get; set; }
 

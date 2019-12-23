@@ -1,9 +1,12 @@
-﻿using System;
+﻿//This product includes GeoLite2 data created by MaxMind, available from
+//<a href="https://www.maxmind.com"> https://www.maxmind.com</a>.
+using System;
 using MaxMind.GeoIP2;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
+using UpdateDBConsoleApp.DataModel;
 
 namespace UpdateDBConsoleApp
 {
@@ -18,28 +21,45 @@ namespace UpdateDBConsoleApp
             {
                 using (var reader = new DatabaseReader(db_path))
                 {
-                    //var response = reader.Country("85.25.43.84");
-                    //Console.WriteLine(response.Country.IsoCode);        // 'US'
-                    //Console.WriteLine(response.Country.Name);           // 'United States'
-                    //Console.WriteLine(response.Country.Names["zh-CN"]); // '美国'
-                    // Replace "City" with the appropriate method for your database, e.g.,
-                    // "Country".
-                    var city = reader.City("128.101.101.101");
 
-                    Console.WriteLine(city.Country.IsoCode); // 'US'
-                    Console.WriteLine(city.Country.Name); // 'United States'
-                    Console.WriteLine(city.Country.GeoNameId);
+                    var readCity = reader.City("128.101.101.101");
+
+                    Console.WriteLine(readCity.Country.IsoCode); // 'US'
+                    Console.WriteLine(readCity.Country.Name); // 'United States'
+                    Console.WriteLine(readCity.Country.GeoNameId);
                     //Console.WriteLine(city.Country.Names["zh-CN"]); // '美国'
 
-                    Console.WriteLine(city.MostSpecificSubdivision.Name); // 'Minnesota'
-                    Console.WriteLine(city.MostSpecificSubdivision.IsoCode); // 'MN'
+                    Console.WriteLine(readCity.MostSpecificSubdivision.Name); // 'Minnesota'
+                    Console.WriteLine(readCity.MostSpecificSubdivision.IsoCode); // 'MN'
 
-                    Console.WriteLine(city.City.Name); // 'Minneapolis'
+                    Console.WriteLine(readCity.City.Name); // 'Minneapolis'
 
-                    Console.WriteLine(city.Postal.Code); // '55455'
+                    Console.WriteLine(readCity.Postal.Code); // '55455'
 
-                    Console.WriteLine(city.Location.Latitude); // 44.9733
-                    Console.WriteLine(city.Location.Longitude); // -93.2323
+                    Console.WriteLine(readCity.Location.Latitude); // 44.9733
+                    Console.WriteLine(readCity.Location.Longitude); // -93.2323
+
+                    var connectionString = GetConnectionString();
+                    if (!string.IsNullOrEmpty(connectionString))
+                    {
+                        var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
+                        var options = optionsBuilder.UseNpgsql(connectionString).Options;                                                
+
+                        using (ApplicationContext db = new ApplicationContext(options))
+                        {
+                            //foreach (var country in reader.)
+                            //{
+
+                            //}
+
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Can't open DB");
+                    }
+
+
                 }
             }
             catch (Exception ex)
@@ -49,22 +69,7 @@ namespace UpdateDBConsoleApp
             finally {
                 Console.ReadLine();
             }
-            var connectionString = GetConnectionString();
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
-                var options = optionsBuilder
-                    .UseNpgsql(connectionString)
-                    .Options;
-
-                using (ApplicationContext db = new ApplicationContext(options))
-                {
-
-                }
-            }
-            else {
-                Console.WriteLine("Can't open DB");
-            }
+            
 
         }
         private static string GetConnectionString()

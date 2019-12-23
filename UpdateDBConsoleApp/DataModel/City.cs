@@ -9,7 +9,9 @@ namespace UpdateDBConsoleApp.DataModel
         public int CityId { get; set; }
         public string Name { get; set; }
         public string PostalCode { get; set; }
-        public int CountryId { get; set; }
-        public int LocalizedNamesId { get; set; }
+        public int SubdivisionId { get; set; }
+        public Subdivision Subdivision { get; set; }
+        public List<Location> Locations { get; set; }//множесто локаций
+        public int GeoNameId { get; set; }
     }
 }
