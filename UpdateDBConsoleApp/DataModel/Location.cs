@@ -16,6 +16,6 @@ namespace UpdateDBConsoleApp.DataModel
         public int MetroCode { get; set; }
         public int PopulationDensity { get; set; }
         public string TimeZone { get; set; }
-        public List<IPs> IPs { get; set; }
+        public List<IP> IPs { get; set; }
     }
 }

@@ -7,6 +7,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using UpdateDBConsoleApp.DataModel;
+using CsvHelper;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace UpdateDBConsoleApp
 {
@@ -17,60 +20,61 @@ namespace UpdateDBConsoleApp
             Console.WriteLine("Try to open GeoIP2 DB");
             string db_path = "C:\\Repos\\Exterminated\\TestTaskRestAPI\\GeoLite2_BDs\\GeoLite2-City_20191217\\GeoLite2-City.mmdb";
             //string db_path = "C:\\Repos\\Exterminated\\TestTaskRestAPI\\GeoLite2_BDs\\GeoLite2-Country_20191217\\GeoLite2-Country.mmdb";
+            string ipv4_csv = @"H:\repos\TestTaskRestAPI\GeoLite2_BDs\GeoLite2-City-CSV_20191217\GeoLite2-City-Blocks-IPv4.csv";
+            string eng_loc = @"H:\repos\TestTaskRestAPI\GeoLite2_BDs\GeoLite2-City-CSV_20191217\GeoLite2-City-Locations-en.csv";
             try
             {
-                using (var reader = new DatabaseReader(db_path))
+                var connectionString = GetConnectionString();
+                if (!string.IsNullOrEmpty(connectionString))
                 {
+                    var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
+                    var options = optionsBuilder.UseNpgsql(connectionString).Options;
 
-                    var readCity = reader.City("128.101.101.101");
-
-                    Console.WriteLine(readCity.Country.IsoCode); // 'US'
-                    Console.WriteLine(readCity.Country.Name); // 'United States'
-                    Console.WriteLine(readCity.Country.GeoNameId);
-                    //Console.WriteLine(city.Country.Names["zh-CN"]); // '美国'
-
-                    Console.WriteLine(readCity.MostSpecificSubdivision.Name); // 'Minnesota'
-                    Console.WriteLine(readCity.MostSpecificSubdivision.IsoCode); // 'MN'
-
-                    Console.WriteLine(readCity.City.Name); // 'Minneapolis'
-
-                    Console.WriteLine(readCity.Postal.Code); // '55455'
-
-                    Console.WriteLine(readCity.Location.Latitude); // 44.9733
-                    Console.WriteLine(readCity.Location.Longitude); // -93.2323
-
-                    var connectionString = GetConnectionString();
-                    if (!string.IsNullOrEmpty(connectionString))
+                    using (ApplicationContext db = new ApplicationContext(options))
                     {
-                        var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
-                        var options = optionsBuilder.UseNpgsql(connectionString).Options;                                                
 
-                        using (ApplicationContext db = new ApplicationContext(options))
+                        List<IPv4> ipsv4 = new List<IPv4>();
+                        List<CityLocations> cityLocations = new List<CityLocations>();
+                        using (var reader = new StreamReader(ipv4_csv))
                         {
-                            //foreach (var country in reader.)
-                            //{
+                            var csvReader = new CsvReader(reader);
+                            csvReader = ConfigureCsvReader(csvReader);
 
-                            //}
-
+                            ipsv4 = csvReader.GetRecords<IPv4>().ToList();
+                            Console.WriteLine($"Readed {ipsv4.Count()}");
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Can't open DB");
-                    }
+                        using (var reader = new StreamReader(eng_loc))
+                        {
+                            var csvReader = new CsvReader(reader);
+                            csvReader = ConfigureCsvReader(csvReader);
 
+                            cityLocations = csvReader.GetRecords<CityLocations>().ToList();
+                            Console.WriteLine($"Readed {cityLocations.Count()}");
+                        }
 
+                    }
                 }
+                else
+                {
+                    Console.WriteLine("Can't open DB");
+                }
+
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in getting data\n{ex.ToString()}");
             }
-            finally {
+            finally
+            {
                 Console.ReadLine();
             }
-            
 
+        }
+        private static CsvReader ConfigureCsvReader(CsvReader reader)
+        {
+            reader.Configuration.Delimiter = ",";
+            reader.Configuration.CultureInfo = CultureInfo.InvariantCulture;
+            return reader;
         }
         private static string GetConnectionString()
         {
@@ -83,7 +87,8 @@ namespace UpdateDBConsoleApp
                 var config = builder.Build();
                 return config.GetConnectionString("DefaultConnection");
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 Console.WriteLine("Error in openning appsettings.json");
                 Console.WriteLine(ex.ToString());
                 return string.Empty;
