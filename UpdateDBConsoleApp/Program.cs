@@ -1,7 +1,6 @@
 ﻿//This product includes GeoLite2 data created by MaxMind, available from
 //<a href="https://www.maxmind.com"> https://www.maxmind.com</a>.
 using System;
-using MaxMind.GeoIP2;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -15,58 +14,83 @@ namespace UpdateDBConsoleApp
 {
     class Program
     {
+        readonly static int _rowPageLimit = 2000;
         static void Main(string[] args)
         {
-            Console.WriteLine("Try to open GeoIP2 DB");
-            string db_path = "C:\\Repos\\Exterminated\\TestTaskRestAPI\\GeoLite2_BDs\\GeoLite2-City_20191217\\GeoLite2-City.mmdb";
-            //string db_path = "C:\\Repos\\Exterminated\\TestTaskRestAPI\\GeoLite2_BDs\\GeoLite2-Country_20191217\\GeoLite2-Country.mmdb";
-            string ipv4_csv = @"H:\repos\TestTaskRestAPI\GeoLite2_BDs\GeoLite2-City-CSV_20191217\GeoLite2-City-Blocks-IPv4.csv";
-            string eng_loc = @"H:\repos\TestTaskRestAPI\GeoLite2_BDs\GeoLite2-City-CSV_20191217\GeoLite2-City-Locations-en.csv";
-            try
+            Console.WriteLine("Open and load new enteries to DB?(Y/N)");
+            string answ = Console.ReadLine();
+            if (answ.Equals("Y", StringComparison.InvariantCultureIgnoreCase))
             {
-                var connectionString = GetConnectionString();
-                if (!string.IsNullOrEmpty(connectionString))
+                Console.WriteLine("Try to open GeoIP2 DB");
+
+                Dictionary<string, string> csvs = GetImportedData();
+                try
                 {
-                    var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
-                    var options = optionsBuilder.UseNpgsql(connectionString).Options;
-
-                    using (ApplicationContext db = new ApplicationContext(options))
+                    var connectionString = GetConnectionString();
+                    if (!string.IsNullOrEmpty(connectionString))
                     {
+                        var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
+                        var options = optionsBuilder.UseNpgsql(connectionString).Options;
 
-                        List<IPv4> ipsv4 = new List<IPv4>();
-                        List<CityLocations> cityLocations = new List<CityLocations>();
-                        using (var reader = new StreamReader(ipv4_csv))
+                        using (ApplicationContext db = new ApplicationContext(options))
                         {
-                            var csvReader = new CsvReader(reader);
-                            csvReader = ConfigureCsvReader(csvReader);
+                            List<IP> ipsv4 = new List<IP>();
+                            List<City> cityLocations = new List<City>();
+                            using (var reader = new StreamReader(csvs["ipv4_csv"]))
+                            {
+                                var csvReader = new CsvReader(reader);
+                                csvReader = ConfigureCsvReader(csvReader);
+                                csvReader.Configuration.RegisterClassMap<IPMap>();
 
-                            ipsv4 = csvReader.GetRecords<IPv4>().ToList();
-                            Console.WriteLine($"Readed {ipsv4.Count()}");
+                                ipsv4 = csvReader.GetRecords<IP>().Distinct().ToList();
+                                Console.WriteLine($"Readed IPv4 {ipsv4.Count()}");
+
+                                do
+                                {
+                                    db.IPs.AddRange(ipsv4.Take(_rowPageLimit));
+                                    db.SaveChanges();
+                                    ipsv4.RemoveRange(0, _rowPageLimit);
+                                }
+                                while (ipsv4.Count != 0);
+
+                            }
+                            using (var reader = new StreamReader(csvs["loc_csv"]))
+                            {
+                                var csvReader = new CsvReader(reader);
+                                csvReader = ConfigureCsvReader(csvReader);
+                                csvReader.Configuration.RegisterClassMap<CityMap>();
+
+                                cityLocations = csvReader.GetRecords<City>().Distinct().ToList();
+                                Console.WriteLine($"Readed cityLocations {cityLocations.Count()}");
+
+                                do
+                                {
+                                    db.Cities.AddRange(cityLocations.Take(_rowPageLimit));
+                                    db.SaveChanges();
+                                    ipsv4.RemoveRange(0, _rowPageLimit);
+                                }
+                                while (cityLocations.Count != 0);
+                            }
+                            db.SaveChanges();
                         }
-                        using (var reader = new StreamReader(eng_loc))
-                        {
-                            var csvReader = new CsvReader(reader);
-                            csvReader = ConfigureCsvReader(csvReader);
-
-                            cityLocations = csvReader.GetRecords<CityLocations>().ToList();
-                            Console.WriteLine($"Readed {cityLocations.Count()}");
-                        }
-
+                    }
+                    else
+                    {
+                        Console.WriteLine("Can't open DB");
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine("Can't open DB");
+                    Console.WriteLine($"Error in getting data\n{ex.ToString()}");
                 }
-
+                finally
+                {
+                    Console.WriteLine("All readed and saved to DB");
+                    Console.ReadLine();
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in getting data\n{ex.ToString()}");
-            }
-            finally
-            {
-                Console.ReadLine();
+            else {
+                Console.WriteLine("Leaving app");                
             }
 
         }
@@ -93,7 +117,22 @@ namespace UpdateDBConsoleApp
                 Console.WriteLine(ex.ToString());
                 return string.Empty;
             }
-
+        }
+        private static Dictionary<string, string> GetImportedData() {
+            var builder = new ConfigurationBuilder();
+            builder.SetBasePath(Directory.GetCurrentDirectory());
+            try
+            {
+                builder.AddJsonFile("appsettings.json");
+                var config = builder.Build();
+                return config.GetSection("ImportingData").GetChildren().Select(i => new KeyValuePair<string, string>(i.Key, i.Value)).ToDictionary(x => x.Key, x => x.Value);                 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error in openning appsettings.json");
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
         }
     }
 }

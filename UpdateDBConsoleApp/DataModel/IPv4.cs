@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace UpdateDBConsoleApp.DataModel
+﻿namespace UpdateDBConsoleApp.DataModel
 {
     public class IPv4
     {
@@ -18,4 +14,5 @@ namespace UpdateDBConsoleApp.DataModel
         public decimal? longitude { get; set; }
         public int? accuracy_radius { get; set; }
     }
+
 }
