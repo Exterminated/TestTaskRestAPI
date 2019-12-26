@@ -9,12 +9,13 @@ using UpdateDBConsoleApp.DataModel;
 using CsvHelper;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading.Tasks;
 
 namespace UpdateDBConsoleApp
 {
     class Program
     {
-        readonly static int _rowPageLimit = 2000;
+        readonly static int _rowPageLimit = 5000;
         static void Main(string[] args)
         {
             Console.WriteLine("Open and load new enteries to DB?(Y/N)");
@@ -32,10 +33,37 @@ namespace UpdateDBConsoleApp
                         var optionsBuilder = new DbContextOptionsBuilder<ApplicationContext>();
                         var options = optionsBuilder.UseNpgsql(connectionString).Options;
 
+                        Console.WriteLine("Do you want clear and reload full DB? This is long time operation (Y/N)");
+                        string reloadAnsw = Console.ReadLine();
+
                         using (ApplicationContext db = new ApplicationContext(options))
                         {
+                            db.ChangeTracker.AutoDetectChangesEnabled = false;
                             List<IP> ipsv4 = new List<IP>();
                             List<City> cityLocations = new List<City>();
+
+                            Console.WriteLine("Starting clearing IP table");
+                            foreach (var id in db.IPs.Select(e => e.IPId))
+                            {
+                                var entity = new IP { IPId = id };
+                                db.IPs.Attach(entity);
+                                db.IPs.Remove(entity);
+                                db.SaveChanges();
+                            }
+                            
+                            Console.WriteLine("Cleared IP table");
+                            Console.WriteLine("Starting clearing Cities table");
+                            foreach (var id in db.Cities.Select(e => e.CityId))
+                            {
+                                var entity = new City { CityId = id };
+                                db.Cities.Attach(entity);
+                                db.Cities.Remove(entity);
+                                db.SaveChanges();
+                            }
+                            
+                            Console.WriteLine("Cleared Cities table");
+
+                            Console.WriteLine("Starting add to IP table");
                             using (var reader = new StreamReader(csvs["ipv4_csv"]))
                             {
                                 var csvReader = new CsvReader(reader);
@@ -45,15 +73,62 @@ namespace UpdateDBConsoleApp
                                 ipsv4 = csvReader.GetRecords<IP>().Distinct().ToList();
                                 Console.WriteLine($"Readed IPv4 {ipsv4.Count()}");
 
-                                do
+                                if (reloadAnsw.Equals("Y", StringComparison.InvariantCultureIgnoreCase))
                                 {
-                                    db.IPs.AddRange(ipsv4.Take(_rowPageLimit));
-                                    db.SaveChanges();
-                                    ipsv4.RemoveRange(0, _rowPageLimit);
-                                }
-                                while (ipsv4.Count != 0);
+                                    try
+                                    {
+                                        do
+                                        {
+                                            db.IPs.AddRange(ipsv4.Take(_rowPageLimit));
+                                            db.SaveChanges();
+                                            ipsv4.RemoveRange(0, _rowPageLimit <= ipsv4.Count() ? _rowPageLimit : ipsv4.Count());
+                                        }
+                                        while (ipsv4.Count != 0);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"Problem wtih IP table\n{ex.ToString()}");
+                                    }
 
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Updating existing IPs");
+                                    try
+                                    {
+                                        var updItem = db?.IPs?.Join(ipsv4,
+                                            i => i.network,
+                                            e => e.network,
+                                            (i, e) => new
+                                            {
+                                                i.IPId,
+                                                e.accuracy_radius,
+                                                e.geoname_id,
+                                                e.is_anonymous_proxy,
+                                                e.is_satellite_provider,
+                                                e.latitude,
+                                                e.longitude,
+                                                e.network,
+                                                e.postal_code,
+                                                e.registered_country_geoname_id,
+                                                e.represented_country_geoname_id
+                                            }
+                                            ).ToList();
+                                        do
+                                        {
+                                            db.IPs.UpdateRange((IP)updItem.Take(_rowPageLimit));
+                                            db.SaveChanges();
+                                            updItem.RemoveRange(0, _rowPageLimit <= updItem.Count() ? _rowPageLimit : updItem.Count());
+                                        } while (updItem.Count() != 0);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine("Error while updating IP table\n" + ex.ToString());
+                                    }
+                                }
                             }
+                            Console.WriteLine("End add to IP table");
+                            Console.WriteLine("Starting add to City table");
                             using (var reader = new StreamReader(csvs["loc_csv"]))
                             {
                                 var csvReader = new CsvReader(reader);
@@ -63,15 +138,62 @@ namespace UpdateDBConsoleApp
                                 cityLocations = csvReader.GetRecords<City>().Distinct().ToList();
                                 Console.WriteLine($"Readed cityLocations {cityLocations.Count()}");
 
-                                do
+                                if (reloadAnsw.Equals("Y", StringComparison.InvariantCultureIgnoreCase))
                                 {
-                                    db.Cities.AddRange(cityLocations.Take(_rowPageLimit));
-                                    db.SaveChanges();
-                                    ipsv4.RemoveRange(0, _rowPageLimit);
+                                    try
+                                    {
+                                        do
+                                        {
+                                            db.Cities.AddRange(cityLocations.Take(_rowPageLimit));
+                                            db.SaveChanges();
+                                            cityLocations.RemoveRange(0, _rowPageLimit <= cityLocations.Count() ? _rowPageLimit : cityLocations.Count());
+                                        }
+                                        while (cityLocations.Count != 0);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine("Problem wtih Cities table\n"+ex.ToString());
+                                    }
                                 }
-                                while (cityLocations.Count != 0);
+                                else {
+                                    try {
+                                        var updItem = db?.Cities?.Join(cityLocations,
+                                            i => i.geoname_id,
+                                            e => e.geoname_id,
+                                            (i, e) => new
+                                            {
+                                                i.CityId,
+                                                e.city_name,
+                                                e.continent_code,
+                                                e.continent_name,
+                                                e.country_iso_code,
+                                                e.country_name,
+                                                e.geoname_id,
+                                                e.is_in_european_union,
+                                                e.locale_code,
+                                                e.metro_code,
+                                                e.subdivision_1_iso_code,
+                                                e.subdivision_1_name,
+                                                e.subdivision_2_iso_code,
+                                                e.subdivision_2_name,
+                                                e.time_zone                                                
+                                            }
+                                            ).ToList();
+                                        do
+                                        {
+                                            db.Cities.UpdateRange((City)updItem.Take(_rowPageLimit));
+                                            db.SaveChanges();
+                                            updItem.RemoveRange(0, _rowPageLimit <= updItem.Count() ? _rowPageLimit : updItem.Count());
+                                        } while (updItem.Count() != 0);
+                                    }
+                                    catch (Exception ex) {
+                                        Console.WriteLine("Error while updating Cities table\n" + ex.ToString());
+                                    }
+                                }
                             }
                             db.SaveChanges();
+                            db.ChangeTracker.AutoDetectChangesEnabled = true;
+                            Console.WriteLine("Starting add to City table");
                         }
                     }
                     else
@@ -89,8 +211,9 @@ namespace UpdateDBConsoleApp
                     Console.ReadLine();
                 }
             }
-            else {
-                Console.WriteLine("Leaving app");                
+            else
+            {
+                Console.WriteLine("Leaving app");
             }
 
         }
@@ -102,8 +225,8 @@ namespace UpdateDBConsoleApp
         }
         private static string GetConnectionString()
         {
+            Console.WriteLine("Starting to read appsettings.json for connection string");
             var builder = new ConfigurationBuilder();
-
             builder.SetBasePath(Directory.GetCurrentDirectory());
             try
             {
@@ -117,21 +240,29 @@ namespace UpdateDBConsoleApp
                 Console.WriteLine(ex.ToString());
                 return string.Empty;
             }
+            finally {
+                Console.WriteLine("End to read appsettings.json for connection string");
+            }
         }
-        private static Dictionary<string, string> GetImportedData() {
+        private static Dictionary<string, string> GetImportedData()
+        {
+            Console.WriteLine("Starting to read appsettings.json");
             var builder = new ConfigurationBuilder();
             builder.SetBasePath(Directory.GetCurrentDirectory());
             try
             {
                 builder.AddJsonFile("appsettings.json");
                 var config = builder.Build();
-                return config.GetSection("ImportingData").GetChildren().Select(i => new KeyValuePair<string, string>(i.Key, i.Value)).ToDictionary(x => x.Key, x => x.Value);                 
+                return config.GetSection("ImportingData").GetChildren().Select(i => new KeyValuePair<string, string>(i.Key, i.Value)).ToDictionary(x => x.Key, x => x.Value);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Error in openning appsettings.json");
                 Console.WriteLine(ex.ToString());
                 return null;
+            }
+            finally {
+                Console.WriteLine("End to read appsettings.json");
             }
         }
     }

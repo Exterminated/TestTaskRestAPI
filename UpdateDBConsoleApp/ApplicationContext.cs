@@ -21,5 +21,15 @@ namespace UpdateDBConsoleApp
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) {
             //optionsBuilder.UseNpgsql(optionsBuilder);
         }
+        public static void ClearTable(ApplicationContext context, string tableName)
+        {
+            try
+            {
+                context.Database.ExecuteSqlRaw($"TRUNCATE TABLE {tableName}");
+            }
+            catch (Exception ex) {
+                Console.WriteLine($"Problem with clear table {tableName}\n{ex.ToString()}");
+            }
+        }
     }
 }
