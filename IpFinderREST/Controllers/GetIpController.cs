@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using IpFinderREST.Models;
 using System.Text.Json;
+using System.Net;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -22,34 +23,34 @@ namespace IpFinderREST.Controllers
         [HttpGet("{ip}")]
         public async Task<ActionResult<string>> GetInfoByIP(string ip)
         {
+            bool ValidateIP = IPAddress.TryParse(ip, out IPAddress ipadr);
+            if (!ValidateIP) {
+                return NotFound($"Not valid IP adress {ip}");
+            }
             if (db == null)
             {
                 return NotFound("Can't open DataBase");
             }
             else
             {
-                var ipFromDB = await db?.IPs?.AsNoTracking().FirstOrDefaultAsync(x => x.network.Contains(ip));
-                if (ipFromDB != null)
+                var parseIp = ip.Split('.', ' ');
+                var ipsFromDB = await db?.IPs?.AsNoTracking().Where(x => x.network.Contains(parseIp[0] + '.' + parseIp[1] + '.' + parseIp[2])).ToListAsync();
+                foreach (var ipWithMask in ipsFromDB)
                 {
-                    var cityInfo = await db?.Cities?.AsNoTracking().Where(c => c.geoname_id.Value == ipFromDB.geoname_id.Value).Distinct().ToListAsync();
-                    //var options = new JsonSerializerOptions
-                    //{
-                    //    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    //    WriteIndented = true
-                    //};
-                    //var modelJson = JsonSerializer.Serialize(new { IP_Info = ipFromDB, Geo_Info = cityInfo }, options);
-                    //return new ObjectResult(modelJson);
-                    if (cityInfo != null) {
-                        return new ObjectResult(new { IP_Info = ipFromDB, Geo_Info = cityInfo.ToArray() });
-                    }
-                    else {
-                        return new ObjectResult(ipFromDB);
+                    if (ipadr.IsIpInSubnet(ipWithMask.network)) {
+                        var cityInfo = await db?.Cities?.AsNoTracking().FirstOrDefaultAsync(c => c.geoname_id.Value == ipWithMask.geoname_id.Value && c.city_name != null && c.country_name != null && c.subdivision_1_name != null);
+
+                        if (cityInfo != null)
+                        {
+                            return new ObjectResult(new { IP_Info = ipWithMask, Geo_Info = cityInfo });
+                        }
+                        else
+                        {
+                            return new ObjectResult(ipWithMask);
+                        }
                     }
                 }
-                else
-                {
-                    return NotFound($"Can't find record with ip {ip}");
-                }
+                return NotFound($"Can't find ip {ip} in DB");
             }
             
         }
